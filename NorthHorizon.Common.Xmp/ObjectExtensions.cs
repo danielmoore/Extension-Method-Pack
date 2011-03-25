@@ -60,6 +60,43 @@ namespace NorthHorizon.Common.Xmp
 		}
 
 		/// <summary>
+		/// Gets whether the target object is in the list, using a default comparer.
+		/// </summary>
+		/// <typeparam name="T">The type of the target object.</typeparam>
+		/// <param name="item">The target object.</param>
+		/// <param name="list">The list of items to compare against.</param>
+		/// <returns>Whether <paramref name="item"/> is in <paramref name="list"/></returns>
+		public static bool In<T>(this T item, params T[] list)
+		{
+			return item.In(EqualityComparer<T>.Default.Equals, list);
+		}
+
+		/// <summary>
+		/// Gets whether the target object is in the list, using a default comparer.
+		/// </summary>
+		/// <typeparam name="T">The type of the target object.</typeparam>
+		/// <param name="item">The target object.</param>
+		/// <param name="comparer">A function that yields whether two objects are equal.</param>
+		/// <param name="list">The list of items to compare against.</param>
+		/// <returns>Whether <paramref name="item"/> is in <paramref name="list"/></returns>
+		public static bool In<T>(this T item, Func<T, T, bool> comparer, params T[] list)
+		{
+			// NOTE: item can be null!
+
+			if (comparer == null)
+				throw new ArgumentNullException("comparer");
+
+			if (list == null)
+				throw new ArgumentNullException("list");
+
+			foreach (var listItem in list)
+				if (comparer(item, listItem))
+					return true;
+
+			return false;
+		}
+
+		/// <summary>
 		/// Gets a specified property in a chain of member accesses, checking for null at each node.
 		/// </summary>
 		/// <typeparam name="TRoot">The type of the root object.</typeparam>
@@ -88,10 +125,11 @@ namespace NorthHorizon.Common.Xmp
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1021:AvoidOutParameters", MessageId = "2#")]
 		public static TValue ChainGet<TRoot, TValue>(this TRoot root, Expression<Func<TRoot, TValue>> getExpression, out bool success)
 		{
-			// it's ok if root is null!
-
 			if (getExpression == null)
 				throw new ArgumentNullException("getExpression");
+
+			if (root == null)
+				goto fail;
 
 			var members = new Stack<MemberAccessInfo>();
 
@@ -114,16 +152,17 @@ namespace NorthHorizon.Common.Xmp
 			foreach (var member in members)
 			{
 				if (node == null)
-				{
-					success = false;
-					return default(TValue);
-				}
+					goto fail;
 
 				node = member.GetValue(node);
 			}
 
 			success = true;
 			return (TValue)node;
+
+			fail:
+			success = false;
+			return default(TValue);
 		}
 
 		private class MemberAccessInfo

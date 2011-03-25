@@ -280,5 +280,47 @@ namespace NorthHorizon.Common.Xmp
 				if (dictionary[key].Count == 0)
 					dictionary.Remove(key);
 		}
+
+		public static bool Contains<TKey, TCol, TItem>(this IDictionary<TKey, TCol> dictionary, TKey key, TItem item)
+			where TCol : ICollection<TItem>
+		{
+			if (dictionary == null)
+				throw new ArgumentNullException("dictionary");
+
+			TCol col;
+			return dictionary.TryGetValue(key, out col) && col.Contains(item);
+		}
+
+		public static bool DeepEquals<TKey, TValue>(this IDictionary<TKey, TValue> target, IDictionary<TKey, TValue> other)
+		{
+			return target.DeepEquals(other, EqualityComparer<TValue>.Default.Equals);
+		}
+
+		public static bool DeepEquals<TKey, TValue>(this IDictionary<TKey, TValue> target, IDictionary<TKey, TValue> other, Func<TValue, TValue, bool> comparer)
+		{
+			if (comparer == null)
+				throw new ArgumentNullException("comparer");
+
+			if (target == null && other == null)
+				return true;
+
+			if (target == null || other == null)
+				return false;
+
+			if (object.ReferenceEquals(target, other))
+				return true;
+
+			if (target.Count != other.Count)
+				return false;
+
+			foreach (var pair in target)
+			{
+				TValue otherValue;
+				if (!other.TryGetValue(pair.Key, out otherValue) || !comparer(pair.Value, otherValue))
+					return false;
+			}
+
+			return true;
+		}
 	}
 }

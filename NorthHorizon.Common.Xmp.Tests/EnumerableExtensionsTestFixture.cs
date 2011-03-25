@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Diagnostics;
 
 namespace NorthHorizon.Common.Xmp.Tests
 {
@@ -52,6 +53,28 @@ namespace NorthHorizon.Common.Xmp.Tests
 			Assert.AreEqual(6, i);
 		}
 
+		[TestMethod, Ignore]
+		public void StressTestAppend()
+		{
+			IEnumerable<int> enumerable = new int[0];
+			var list = new List<int>();
+			for (int i = 0; i < 1E4; i++)
+			{
+				enumerable = enumerable.Append(i);
+				list.Add(i);
+			}
+
+			var listStopwatch = Stopwatch.StartNew();
+			foreach(var i in list);
+			listStopwatch.Stop();
+
+			var enumerableStopwatch = Stopwatch.StartNew();
+			foreach (var i in enumerable) ;
+			enumerableStopwatch.Stop();
+
+			Assert.Inconclusive("List iterated in {0} ticks, appended enumerable iterated in {1} ticks.", listStopwatch.ElapsedTicks, enumerableStopwatch.ElapsedTicks);
+		}
+
 		[TestMethod]
 		public void TestPrepend()
 		{
@@ -69,7 +92,66 @@ namespace NorthHorizon.Common.Xmp.Tests
 		}
 
 		[TestMethod]
-		public void TestAsObservableCreation()
+		public void TestSkipExceptions()
+		{
+			var list = new[] { -1, 0, 1 };
+			var newList = list.Select(i => 1 / i).SkipExceptions<int, DivideByZeroException>().ToArray();
+
+			Assert.AreEqual(2, newList.Length);
+			Assert.AreEqual(-1, newList[0]);
+			Assert.AreEqual(1, newList[1]);
+		}
+
+		[TestMethod, Ignore]
+		public void StressTestSkipExceptions()
+		{
+			var list = new List<string>();
+			for (int i = 0; i < 1E5; i++)
+			{
+					list.Add(i.ToString());
+			}
+
+			var newList = new List<int>();
+
+			var tryParseStopwtch = Stopwatch.StartNew();
+			foreach (var str in list)
+			{
+				int value;
+				if (int.TryParse(str, out value))
+					newList.Add(value);
+			}
+			tryParseStopwtch.Stop();
+
+			newList.Clear();
+			var tryCatchStopWatch = Stopwatch.StartNew();
+			foreach(var str in list)
+				try
+				{
+					newList.Add(int.Parse(str));
+				}
+				catch { }
+			tryCatchStopWatch.Stop();
+
+			var skipExceptionsStopwatch = Stopwatch.StartNew();
+			newList = list.Select(str => int.Parse(str)).SkipExceptions().ToList();
+			skipExceptionsStopwatch.Stop();
+
+			Assert.Inconclusive("TryParse iteration took {0} ticks, Try-Catch iteration took {1} ticks, SkipExceptions iteration took {1} ticks.", 
+				tryParseStopwtch.ElapsedTicks, tryCatchStopWatch.ElapsedTicks, skipExceptionsStopwatch.ElapsedTicks);
+		}
+
+		[TestMethod]
+		public void TestTryParse()
+		{
+			var list = new[] { "0", "1", "Foobar!", "2" };
+			int[] ints = list.TryParse<string, int>().ToArray();
+
+			for (int i = 0; i < 3; i++)
+				Assert.AreEqual(i, ints[i]);
+		}
+
+		[TestMethod]
+		public void TestAsObservable()
 		{
 			IEnumerable<int> list = new List<int> { 1, 2, 3, 4, 5 };
 			var obs = list.AsObservable();
@@ -84,16 +166,7 @@ namespace NorthHorizon.Common.Xmp.Tests
 		}
 
 		[TestMethod]
-		public void TestAsObservableReuse()
-		{
-			IEnumerable<int> list = new ObservableCollection<int> { 1, 2, 3, 4, 5 };
-			var obs = list.AsObservable();
-
-			Assert.AreSame(list, obs);
-		}
-
-		[TestMethod]
-		public void TestAsHashSetCreation()
+		public void TestAsHashSet()
 		{
 			IEnumerable<int> list = new List<int> { 0, 1, 1, 2, 3, 4, 4 };
 			var set = list.AsHashSet();
@@ -108,15 +181,6 @@ namespace NorthHorizon.Common.Xmp.Tests
 
 			for (int i = 0; i < array.Length; i++)
 				Assert.AreEqual(i, array[i]);
-		}
-
-		[TestMethod]
-		public void TestAsHashSetReuse()
-		{
-			IEnumerable<int> list = new HashSet<int> { 1, 2, 3, 4, 5 };
-			var set = list.AsHashSet();
-
-			Assert.AreSame(list, set);
 		}
 
 		[TestMethod]
@@ -144,6 +208,5 @@ namespace NorthHorizon.Common.Xmp.Tests
 				Calls++;
 			}
 		}
-
 	}
 }

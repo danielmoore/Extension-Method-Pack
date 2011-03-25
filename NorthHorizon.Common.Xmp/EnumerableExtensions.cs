@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace NorthHorizon.Common.Xmp
 {
@@ -16,6 +17,7 @@ namespace NorthHorizon.Common.Xmp
 		/// <typeparam name="T">The type of items in the collection.</typeparam>
 		/// <param name="collection">The target collection</param>
 		/// <param name="action">The action to perform.</param>
+		[Obsolete("Should use Run from RX.")]
 		public static void ForEach<T>(this IEnumerable<T> collection, Action<T> action)
 		{
 			if (collection == null)
@@ -33,6 +35,7 @@ namespace NorthHorizon.Common.Xmp
 		/// </summary>
 		/// <param name="collection">The target collection</param>
 		/// <param name="action">The action to perform.</param>
+		[Obsolete("Should use Run from RX.")]
 		public static void ForEach(this IEnumerable collection, Action<object> action)
 		{
 			if (collection == null)
@@ -60,10 +63,8 @@ namespace NorthHorizon.Common.Xmp
 			if (item == null)
 				throw new ArgumentNullException("item");
 
-			foreach (var colItem in collection)
-				yield return colItem;
-
-			yield return item;
+			var appendable = collection as AppendableEnumerable<T> ?? new AppendableEnumerable<T>(collection);
+			return appendable.Append(item);
 		}
 
 		/// <summary>
@@ -81,10 +82,94 @@ namespace NorthHorizon.Common.Xmp
 			if (item == null)
 				throw new ArgumentNullException("item");
 
-			yield return item;
+			var appendable = collection as AppendableEnumerable<T> ?? new AppendableEnumerable<T>(collection);
+			return appendable.Prepend(item);
+		}
 
-			foreach (var colItem in collection)
-				yield return colItem;
+		/// <summary>
+		/// Yields a list without any items that throw an exception while enumerating.
+		/// </summary>
+		/// <typeparam name="T">The type of items in the collection.</typeparam>
+		/// <param name="collection">The target collection</param>
+		/// <returns>The list without any items that have thrown an exception.</returns>
+		[Obsolete]
+		public static IEnumerable<T> SkipExceptions<T>(this IEnumerable<T> collection)
+		{
+			return collection.SkipExceptions<T, Exception>();
+		}
+
+		/// <summary>
+		/// Yields a list without any items that throw an exception while enumerating.
+		/// </summary>
+		/// <typeparam name="T">The type of items in the collection.</typeparam>
+		/// <typeparam name="TException">The type of exception to catch.</typeparam>
+		/// <param name="collection">The target collection</param>
+		/// <returns>The list without any items that have thrown an exception.</returns>
+		[Obsolete]
+		public static IEnumerable<T> SkipExceptions<T, TException>(this IEnumerable<T> collection) where TException : Exception
+		{
+			using (var enumerator = collection.GetEnumerator())
+			{
+				while (true)
+				{
+					bool success = false;
+					bool exceptionOccurred = false;
+
+					try
+					{
+						success = enumerator.MoveNext();
+					}
+					catch (TException)
+					{
+						exceptionOccurred = true;
+					}
+
+					// if an exception occurred, we don't know if we're at the end
+					// of the list or not. Fortunately, calling MoveNext() after a
+					// a list has been fully enumerated always returns false.
+					if (!exceptionOccurred && !success)
+						break;
+
+					if (!exceptionOccurred)
+						yield return enumerator.Current;
+				}
+			}
+		}
+
+		public static IEnumerable<TOutput> TryParse<TInput, TOutput>(this IEnumerable<TInput> collection)
+		{
+			if (collection == null)
+				throw new ArgumentNullException("collection");
+
+			var methodInfo = typeof(TOutput).GetMethod("TryParse", new[] { typeof(TInput), typeof(TOutput).MakeByRefType() });
+
+			foreach (var item in collection)
+			{
+				var args = new object[] { item, null };
+				var success = (bool)methodInfo.Invoke(null, args);
+
+				if (success)
+					yield return (TOutput)args[1];
+			}
+		}
+
+		public static IEnumerable<TOutput> TryParse<TInput, TOutput>(this IEnumerable<TInput> collection, Func<TInput, TryParseResult<TOutput>, bool> tryParser)
+		{
+			if (collection == null)
+				throw new ArgumentNullException("collection");
+
+			if (tryParser == null)
+				throw new ArgumentNullException("tryParser");
+
+			foreach (var item in collection)
+			{
+				var result = new TryParseResult<TOutput>();
+
+				var success = tryParser(item, result);
+
+				if (success)
+					yield return result.Result;
+			}
 		}
 
 		/// <summary>
@@ -101,7 +186,7 @@ namespace NorthHorizon.Common.Xmp
 			if (collection == null)
 				throw new ArgumentNullException("collection");
 
-			return collection as ObservableCollection<T> ?? new ObservableCollection<T>(collection);
+			return new ObservableCollection<T>(collection);
 		}
 
 		/// <summary>
@@ -118,7 +203,7 @@ namespace NorthHorizon.Common.Xmp
 			if (collection == null)
 				throw new ArgumentNullException("collection");
 
-			return collection as HashSet<T> ?? new HashSet<T>(collection);
+			return new HashSet<T>(collection);
 		}
 
 		/// <summary>
@@ -186,6 +271,139 @@ namespace NorthHorizon.Common.Xmp
 			}
 
 			return maxArg;
+		}
+
+		/// <summary>
+		/// Joins each item 
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
+		/// <param name="list"></param>
+		/// <param name="separator"></param>
+		/// <returns></returns>
+		public static string StringJoin<T>(this IEnumerable<T> list, string separator)
+		{
+			return StringJoin(list, separator, ConvertObjectToString);
+		}
+
+		private static string ConvertObjectToString<T>(T obj)
+		{
+			return obj.ToString();
+		}
+
+		public static string StringJoin<T>(this IEnumerable<T> list, string separator, Func<T, string> toString)
+		{
+			if (list == null)
+				throw new ArgumentNullException("list");
+
+			if (separator == null)
+				throw new ArgumentNullException("separator");
+
+			if (toString == null)
+				throw new ArgumentNullException("toString");
+#if NET40
+			return string.Join(separator, list.Select(toString));
+#else
+			return string.Join(separator, list.Select(toString).ToArray());
+#endif
+		}
+
+		public static bool DeepEquals<T>(this IEnumerable<T> target, IEnumerable<T> other)
+		{
+			return target.DeepEquals(other, EqualityComparer<T>.Default.Equals);
+		}
+
+		public static bool DeepEquals<T>(this IEnumerable<T> target, IEnumerable<T> other, Func<T, T, bool> comparer)
+		{
+			if (target == null && other == null)
+				return true;
+
+			if (target == null || other == null)
+				return false;
+
+			if (object.ReferenceEquals(target, other))
+				return true;
+
+			using (var targetEnumerable = target.GetEnumerator())
+			using (var otherEnumerable = other.GetEnumerator())
+			{
+				while (true)
+				{
+					var targetSuccess = targetEnumerable.MoveNext();
+					var otherSuccess = otherEnumerable.MoveNext();
+
+					if (!targetSuccess && !otherSuccess)
+						return true;
+
+					if (!targetSuccess || !otherSuccess)
+						return false;
+
+					if (!comparer(targetEnumerable.Current, otherEnumerable.Current))
+						return false;
+				}
+			}
+		}
+
+		private class AppendableEnumerable<T> : IEnumerable<T>
+		{
+			private readonly T[] _prepends;
+			private readonly T[] _appends;
+
+			private readonly IEnumerable<T> _baseEnumerable;
+
+			public AppendableEnumerable(IEnumerable<T> baseEnumerable)
+			{
+				_prepends = new T[0];
+				_appends = new T[0];
+
+				_baseEnumerable = baseEnumerable;
+			}
+
+			private AppendableEnumerable(T[] prepends, IEnumerable<T> baseEnumerable, T[] appends)
+			{
+				_prepends = prepends;
+				_baseEnumerable = baseEnumerable;
+				_appends = appends;
+			}
+
+			public AppendableEnumerable<T> Prepend(T item)
+			{
+				var prepends = new T[_prepends.Length + 1];
+				prepends[0] = item;
+				_prepends.CopyTo(prepends, 1);
+
+				return new AppendableEnumerable<T>(prepends, _baseEnumerable, _appends);
+			}
+
+			public AppendableEnumerable<T> Append(T item)
+			{
+				var appends = new T[_appends.Length + 1];
+				_appends.CopyTo(appends, 0);
+				appends[appends.Length - 1] = item;
+
+				return new AppendableEnumerable<T>(_prepends, _baseEnumerable, appends);
+			}
+
+			public IEnumerator<T> GetEnumerator()
+			{
+				foreach (var item in _prepends)
+					yield return item;
+
+				foreach (var item in _baseEnumerable)
+					yield return item;
+
+				foreach (var item in _appends)
+					yield return item;
+			}
+
+			IEnumerator IEnumerable.GetEnumerator()
+			{
+				return GetEnumerator();
+			}
+		}
+
+		public sealed class TryParseResult<T>
+		{
+			public T Result;
 		}
 	}
 }

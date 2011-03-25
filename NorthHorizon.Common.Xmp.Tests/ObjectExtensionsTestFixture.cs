@@ -47,6 +47,13 @@ namespace NorthHorizon.Common.Xmp.Tests
 			Assert.AreEqual(1, test);
 		}
 
+		[TestMethod]
+		public void TestDefaultIn()
+		{
+			var result = "a".In("a", "b", "c");
+
+			Assert.IsTrue(result);
+		}
 
 		[TestMethod]
 		public void TestChainGetSuccess()
@@ -69,7 +76,7 @@ namespace NorthHorizon.Common.Xmp.Tests
 			Assert.IsFalse(success);
 		}
 
-		[TestMethod]
+		[TestMethod, Ignore]
 		public void TestChainGetAccessTime()
 		{
 			const int repeat = 10000;
