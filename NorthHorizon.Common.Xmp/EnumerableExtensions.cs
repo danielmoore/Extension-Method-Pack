@@ -49,21 +49,45 @@ namespace NorthHorizon.Common.Xmp
                 action(item);
         }
 
-        public static bool Has(this IEnumerable source, Expression<Func<int, bool>> countExpression)
+        /// <summary>
+        /// Determines whether the given enumerable has a number of items.
+        /// </summary>
+        /// <param name="source">The enumerable to query.</param>
+        /// <param name="countExpression">An expression declaring the desired number of items.</param>
+        /// <returns>Whether the enumerable has the desired number of items.</returns>
+        /// <remarks>
+        /// This extension method supports the following operators:
+        /// <list type="bullet">
+        ///     <item><c>==</c></item>
+        ///     <item><c>!=</c></item>
+        ///     <item><c><![CDATA[<]]></c></item>
+        ///     <item><c><![CDATA[<=]]></c></item>
+        ///     <item><c><![CDATA[>]]></c></item>
+        ///     <item><c><![CDATA[>=]]></c></item>
+        /// </list>
+        /// </remarks>
+        /// <example>
+        /// <code><![CDATA[list.Has(count => count > 15)]]></code>
+        /// <code>><![CDATA[list.Has(count => x < count)]]></code>
+        /// </example>
+        public static bool Has(this IEnumerable source, Expression<Func<long, bool>> countExpression)
         {
-            int? leftBoundOffset, rightBoundOffset;
+            if(source == null) throw new ArgumentNullException("source");
+            if(countExpression == null) throw new ArgumentNullException("countExpression");
+
+            long? leftBoundOffset, rightBoundOffset;
 
             var operation = countExpression.Body as BinaryExpression;
-
-            Expression valueExpression;
 
             if (operation == null)
                 throw new ArgumentException("Invalid expression.", "countExpression");
 
+            bool isInverted = false, isNegated = false;
+            Expression valueExpression;
+
             var parameterExpression = countExpression.Parameters.Single();
 
-            bool isInverted = false, isNegated = false;
-
+            // we assume c => c < x. If they give us c => x < c, we need to eval the LHS and set a flag.
             if (operation.Left == parameterExpression)
                 valueExpression = operation.Right;
             else if (isInverted = operation.Right == parameterExpression)
@@ -131,7 +155,16 @@ namespace NorthHorizon.Common.Xmp
                     throw new ArgumentException("Invalid expression.", "countExpression");
             }
 
-            var value = (int)Expression.Lambda(valueExpression).Compile().DynamicInvoke();
+            long value;
+
+            try
+            {
+                value = (long)Expression.Lambda(valueExpression).Compile().DynamicInvoke();
+            }
+            catch (InvalidOperationException error)
+            {
+                throw new ArgumentException("Error executing count comparison value expression.", "countExpression", error);
+            }
 
             var leftBound = value + leftBoundOffset;
             var rightBound = value + rightBoundOffset;
@@ -142,7 +175,7 @@ namespace NorthHorizon.Common.Xmp
                 var enumerator = source.GetEnumerator();
                 enumeratorDisposable = enumerator as IDisposable;
 
-                int count = 0;
+                long count = 0;
 
                 if (leftBound.HasValue)
                     while (count <= leftBound)
