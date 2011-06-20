@@ -68,7 +68,7 @@ namespace NorthHorizon.Common.Xmp
         /// <code><![CDATA[list.Has(count => count > 15)]]></code>
         /// <code>><![CDATA[list.Has(count => x < count)]]></code>
         /// </example>
-        public static bool Has(this IEnumerable source, Expression<Func<long, bool>> countExpression)
+        public static bool Has<T>(this IEnumerable<T> source, Expression<Func<long, bool>> countExpression)
         {
             if (source == null) throw new ArgumentNullException("source");
             if (countExpression == null) throw new ArgumentNullException("countExpression");
@@ -167,10 +167,7 @@ namespace NorthHorizon.Common.Xmp
             var leftBound = value + leftBoundOffset;
             var rightBound = value + rightBoundOffset;
 
-            var enumerator = source.GetEnumerator();
-
-            // some enumerators implement IDisposable.
-            using (enumerator as IDisposable)
+            using (var enumerator = source.GetEnumerator())
             {
                 long count = 0;
 
@@ -202,6 +199,7 @@ namespace NorthHorizon.Common.Xmp
             }
         }
 
+        /// <summary>
         /// Yields a new list with an item added to the end.
         /// </summary>
         /// <typeparam name="T">The type of items in the collection.</typeparam>
