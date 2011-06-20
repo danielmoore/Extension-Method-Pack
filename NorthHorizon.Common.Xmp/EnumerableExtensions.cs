@@ -72,8 +72,8 @@ namespace NorthHorizon.Common.Xmp
         /// </example>
         public static bool Has(this IEnumerable source, Expression<Func<long, bool>> countExpression)
         {
-            if(source == null) throw new ArgumentNullException("source");
-            if(countExpression == null) throw new ArgumentNullException("countExpression");
+            if (source == null) throw new ArgumentNullException("source");
+            if (countExpression == null) throw new ArgumentNullException("countExpression");
 
             long? leftBoundOffset, rightBoundOffset;
 
@@ -169,15 +169,15 @@ namespace NorthHorizon.Common.Xmp
             var leftBound = value + leftBoundOffset;
             var rightBound = value + rightBoundOffset;
 
-            IDisposable enumeratorDisposable = null;
-            try
-            {
-                var enumerator = source.GetEnumerator();
-                enumeratorDisposable = enumerator as IDisposable;
+            var enumerator = source.GetEnumerator();
 
+            // some enumerators implement IDisposable.
+            using (enumerator as IDisposable)
+            {
                 long count = 0;
 
                 if (leftBound.HasValue)
+                    // this determines leftBound < count
                     while (count <= leftBound)
                     {
                         if (!enumerator.MoveNext())
@@ -188,6 +188,7 @@ namespace NorthHorizon.Common.Xmp
 
                 if (rightBound.HasValue)
                 {
+                    // this determines count < rightBound
                     while (count < rightBound)
                     {
                         if (!enumerator.MoveNext())
@@ -200,11 +201,6 @@ namespace NorthHorizon.Common.Xmp
                 }
 
                 return true;
-            }
-            finally
-            {
-                if (enumeratorDisposable != null)
-                    enumeratorDisposable.Dispose();
             }
         }
 
