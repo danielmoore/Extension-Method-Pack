@@ -3,407 +3,535 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Linq.Expressions;
 
 namespace NorthHorizon.Common.Xmp
 {
-	/// <summary>
-	/// Provides extension methods for <see cref="IEnumerable{T}"/> and <see cref="IEnumerable"/>.
-	/// </summary>
-	public static class EnumerableExtensions
-	{
-		/// <summary>
-		/// Executes the specified action with each item as the parameter.
-		/// </summary>
-		/// <typeparam name="T">The type of items in the collection.</typeparam>
-		/// <param name="collection">The target collection</param>
-		/// <param name="action">The action to perform.</param>
-		[Obsolete("Should use Run from RX.")]
-		public static void ForEach<T>(this IEnumerable<T> collection, Action<T> action)
-		{
-			if (collection == null)
-				throw new ArgumentNullException("collection");
+    /// <summary>
+    /// Provides extension methods for <see cref="IEnumerable{T}"/> and <see cref="IEnumerable"/>.
+    /// </summary>
+    public static class EnumerableExtensions
+    {
+        /// <summary>
+        /// Executes the specified action with each item as the parameter.
+        /// </summary>
+        /// <typeparam name="T">The type of items in the collection.</typeparam>
+        /// <param name="collection">The target collection</param>
+        /// <param name="action">The action to perform.</param>
+        [Obsolete("Should use Run from RX.")]
+        public static void ForEach<T>(this IEnumerable<T> collection, Action<T> action)
+        {
+            if (collection == null)
+                throw new ArgumentNullException("collection");
 
-			if (action == null)
-				throw new ArgumentNullException("action");
+            if (action == null)
+                throw new ArgumentNullException("action");
 
-			foreach (var item in collection)
-				action(item);
-		}
+            foreach (var item in collection)
+                action(item);
+        }
 
-		/// <summary>
-		/// Executes the specified action with each item as the parameter.
-		/// </summary>
-		/// <param name="collection">The target collection</param>
-		/// <param name="action">The action to perform.</param>
-		[Obsolete("Should use Run from RX.")]
-		public static void ForEach(this IEnumerable collection, Action<object> action)
-		{
-			if (collection == null)
-				throw new ArgumentNullException("collection");
+        /// <summary>
+        /// Executes the specified action with each item as the parameter.
+        /// </summary>
+        /// <param name="collection">The target collection</param>
+        /// <param name="action">The action to perform.</param>
+        [Obsolete("Should use Run from RX.")]
+        public static void ForEach(this IEnumerable collection, Action<object> action)
+        {
+            if (collection == null)
+                throw new ArgumentNullException("collection");
 
-			if (action == null)
-				throw new ArgumentNullException("action");
+            if (action == null)
+                throw new ArgumentNullException("action");
 
-			foreach (var item in collection)
-				action(item);
-		}
+            foreach (var item in collection)
+                action(item);
+        }
 
-		/// <summary>
-		/// Yields a new list with an item added to the end.
-		/// </summary>
-		/// <typeparam name="T">The type of items in the collection.</typeparam>
-		/// <param name="collection">The target collection</param>
-		/// <param name="item">The item to append.</param>
-		/// <returns>A new list with <paramref name="item"/> added to the end.</returns>
-		public static IEnumerable<T> Append<T>(this IEnumerable<T> collection, T item)
-		{
-			if (collection == null)
-				throw new ArgumentNullException("collection");
+        public static bool Has(this IEnumerable source, Expression<Func<int, bool>> countExpression)
+        {
+            int? leftBoundOffset, rightBoundOffset;
 
-			if (item == null)
-				throw new ArgumentNullException("item");
+            var operation = countExpression.Body as BinaryExpression;
 
-			var appendable = collection as AppendableEnumerable<T> ?? new AppendableEnumerable<T>(collection);
-			return appendable.Append(item);
-		}
+            Expression valueExpression;
 
-		/// <summary>
-		/// Yields a new list with an item added to the beginning.
-		/// </summary>
-		/// <typeparam name="T">The type of items in the collection.</typeparam>
-		/// <param name="collection">The target collection</param>
-		/// <param name="item">The item to prepend.</param>
-		/// <returns>A new list with <paramref name="item"/> added to the beginning.</returns>
-		public static IEnumerable<T> Prepend<T>(this IEnumerable<T> collection, T item)
-		{
-			if (collection == null)
-				throw new ArgumentNullException("collection");
+            if (operation == null)
+                throw new ArgumentException("Invalid expression.", "countExpression");
 
-			if (item == null)
-				throw new ArgumentNullException("item");
+            var parameterExpression = countExpression.Parameters.Single();
 
-			var appendable = collection as AppendableEnumerable<T> ?? new AppendableEnumerable<T>(collection);
-			return appendable.Prepend(item);
-		}
+            bool isInverted = false, isNegated = false;
 
-		/// <summary>
-		/// Yields a list without any items that throw an exception while enumerating.
-		/// </summary>
-		/// <typeparam name="T">The type of items in the collection.</typeparam>
-		/// <param name="collection">The target collection</param>
-		/// <returns>The list without any items that have thrown an exception.</returns>
-		[Obsolete]
-		public static IEnumerable<T> SkipExceptions<T>(this IEnumerable<T> collection)
-		{
-			return collection.SkipExceptions<T, Exception>();
-		}
+            if (operation.Left == parameterExpression)
+                valueExpression = operation.Right;
+            else if (isInverted = operation.Right == parameterExpression)
+                valueExpression = operation.Left;
+            else
+                throw new ArgumentException("Count parameter is missing.", "countExpression");
 
-		/// <summary>
-		/// Yields a list without any items that throw an exception while enumerating.
-		/// </summary>
-		/// <typeparam name="T">The type of items in the collection.</typeparam>
-		/// <typeparam name="TException">The type of exception to catch.</typeparam>
-		/// <param name="collection">The target collection</param>
-		/// <returns>The list without any items that have thrown an exception.</returns>
-		[Obsolete]
-		public static IEnumerable<T> SkipExceptions<T, TException>(this IEnumerable<T> collection) where TException : Exception
-		{
-			using (var enumerator = collection.GetEnumerator())
-			{
-				while (true)
-				{
-					bool success = false;
-					bool exceptionOccurred = false;
+            // translate to v + delta_l < c < v + delta_r
+            switch (countExpression.Body.NodeType)
+            {
+                case ExpressionType.NotEqual:
+                    isNegated = true;
+                    goto case ExpressionType.Equal;
 
-					try
-					{
-						success = enumerator.MoveNext();
-					}
-					catch (TException)
-					{
-						exceptionOccurred = true;
-					}
+                case ExpressionType.Equal:
+                    leftBoundOffset = -1;
+                    rightBoundOffset = 1;
+                    break;
 
-					// if an exception occurred, we don't know if we're at the end
-					// of the list or not. Fortunately, calling MoveNext() after a
-					// a list has been fully enumerated always returns false.
-					if (!exceptionOccurred && !success)
-						break;
+                case ExpressionType.GreaterThan:
+                    if (isInverted)
+                    {
+                        isInverted = false;
+                        goto case ExpressionType.LessThan;
+                    }
 
-					if (!exceptionOccurred)
-						yield return enumerator.Current;
-				}
-			}
-		}
+                    leftBoundOffset = 0;
+                    rightBoundOffset = null;
+                    break;
 
-		public static IEnumerable<TOutput> TryParse<TInput, TOutput>(this IEnumerable<TInput> collection)
-		{
-			if (collection == null)
-				throw new ArgumentNullException("collection");
+                case ExpressionType.GreaterThanOrEqual:
+                    if (isInverted)
+                    {
+                        isInverted = false;
+                        goto case ExpressionType.LessThanOrEqual;
+                    }
 
-			var methodInfo = typeof(TOutput).GetMethod("TryParse", new[] { typeof(TInput), typeof(TOutput).MakeByRefType() });
+                    leftBoundOffset = -1;
+                    rightBoundOffset = null;
+                    break;
 
-			foreach (var item in collection)
-			{
-				var args = new object[] { item, null };
-				var success = (bool)methodInfo.Invoke(null, args);
+                case ExpressionType.LessThan:
+                    if (isInverted)
+                    {
+                        isInverted = false;
+                        goto case ExpressionType.GreaterThan;
+                    }
 
-				if (success)
-					yield return (TOutput)args[1];
-			}
-		}
+                    leftBoundOffset = null;
+                    rightBoundOffset = 0;
+                    break;
 
-		public static IEnumerable<TOutput> TryParse<TInput, TOutput>(this IEnumerable<TInput> collection, Func<TInput, TryParseResult<TOutput>, bool> tryParser)
-		{
-			if (collection == null)
-				throw new ArgumentNullException("collection");
+                case ExpressionType.LessThanOrEqual:
+                    if (isInverted)
+                    {
+                        isInverted = false;
+                        goto case ExpressionType.GreaterThanOrEqual;
+                    }
 
-			if (tryParser == null)
-				throw new ArgumentNullException("tryParser");
+                    leftBoundOffset = null;
+                    rightBoundOffset = 1;
+                    break;
 
-			foreach (var item in collection)
-			{
-				var result = new TryParseResult<TOutput>();
+                default:
+                    throw new ArgumentException("Invalid expression.", "countExpression");
+            }
 
-				var success = tryParser(item, result);
+            var value = (int)Expression.Lambda(valueExpression).Compile().DynamicInvoke();
 
-				if (success)
-					yield return result.Result;
-			}
-		}
+            var leftBound = value + leftBoundOffset;
+            var rightBound = value + rightBoundOffset;
 
-		/// <summary>
-		/// Returns the specified collection as an <see cref="ObservableCollection{T}"/>.
-		/// </summary>
-		/// <typeparam name="T">The type of items in the collection.</typeparam>
-		/// <param name="collection">The target collection</param>
-		/// <returns>
-		/// An <see cref="ObservableCollection{T}"/> with all of the items
-		/// in <paramref name="collection"/>. This is not necessarily a new object.
-		/// </returns>
-		public static ObservableCollection<T> AsObservable<T>(this IEnumerable<T> collection)
-		{
-			if (collection == null)
-				throw new ArgumentNullException("collection");
+            IDisposable enumeratorDisposable = null;
+            try
+            {
+                var enumerator = source.GetEnumerator();
+                enumeratorDisposable = enumerator as IDisposable;
 
-			return new ObservableCollection<T>(collection);
-		}
+                int count = 0;
 
-		/// <summary>
-		/// Returns the specified collection as an <see cref="HashSet{T}"/>.
-		/// </summary>
-		/// <typeparam name="T">The type of items in the collection.</typeparam>
-		/// <param name="collection">The target collection</param>
-		/// <returns>
-		/// An <see cref="HashSet{T}"/> with all of the items
-		/// in <paramref name="collection"/>. This is not necessarily a new object.
-		/// </returns>
-		public static HashSet<T> AsHashSet<T>(this IEnumerable<T> collection)
-		{
-			if (collection == null)
-				throw new ArgumentNullException("collection");
+                if (leftBound.HasValue)
+                    while (count <= leftBound)
+                    {
+                        if (!enumerator.MoveNext())
+                            return isNegated;
 
-			return new HashSet<T>(collection);
-		}
+                        count++;
+                    }
 
-		/// <summary>
-		/// Gets the argument that produces the maximum value 
-		/// yielded from the specified function.
-		/// </summary>
-		/// <typeparam name="T">The type of items in the collection.</typeparam>
-		/// <typeparam name="TValue">The type of the value yielded from the specified function.</typeparam>
-		/// <param name="collection">The target collection.</param>
-		/// <param name="function">The function used to produce values.</param>
-		/// <returns>The argument that produces the highest value.</returns>
-		public static T ArgMax<T, TValue>(this IEnumerable<T> collection, Func<T, TValue> function)
-			where TValue : IComparable<TValue>
-		{
-			return ArgComp(collection, function, GreaterThan);
-		}
+                if (rightBound.HasValue)
+                {
+                    while (count < rightBound)
+                    {
+                        if (!enumerator.MoveNext())
+                            return !isNegated;
 
-		private static bool GreaterThan<T>(T first, T second) where T : IComparable<T>
-		{
-			return first.CompareTo(second) > 0;
-		}
+                        count++;
+                    }
 
-		/// <summary>
-		/// Gets the argument that produces the minimum value 
-		/// yielded from the specified function.
-		/// </summary>
-		/// <typeparam name="T">The type of items in the collection.</typeparam>
-		/// <typeparam name="TValue">The type of the value yielded from the specified function.</typeparam>
-		/// <param name="collection">The target collection.</param>
-		/// <param name="function">The function used to produce values.</param>
-		/// <returns>The argument that produces the least value.</returns>
-		public static T ArgMin<T, TValue>(this IEnumerable<T> collection, Func<T, TValue> function)
-			where TValue : IComparable<TValue>
-		{
-			return ArgComp(collection, function, LessThan);
-		}
+                    return isNegated;
+                }
 
-		private static bool LessThan<T>(T first, T second) where T : IComparable<T>
-		{
-			return first.CompareTo(second) < 0;
-		}
+                return true;
+            }
+            finally
+            {
+                if (enumeratorDisposable != null)
+                    enumeratorDisposable.Dispose();
+            }
+        }
 
-		private static T ArgComp<T, TValue>(IEnumerable<T> collection, Func<T, TValue> function, Func<TValue, TValue, bool> accept)
-			where TValue : IComparable<TValue>
-		{
-			if (collection == null)
-				throw new ArgumentNullException("collection");
 
-			if (function == null)
-				throw new ArgumentNullException("function");
+        /// <summary>
+        /// Yields a new list with an item added to the end.
+        /// </summary>
+        /// <typeparam name="T">The type of items in the collection.</typeparam>
+        /// <param name="collection">The target collection</param>
+        /// <param name="item">The item to append.</param>
+        /// <returns>A new list with <paramref name="item"/> added to the end.</returns>
+        public static IEnumerable<T> Append<T>(this IEnumerable<T> collection, T item)
+        {
+            if (collection == null)
+                throw new ArgumentNullException("collection");
 
-			var isSet = false;
-			var maxArg = default(T);
-			var maxValue = default(TValue);
+            if (item == null)
+                throw new ArgumentNullException("item");
 
-			foreach (var item in collection)
-			{
-				var value = function(item);
-				if (!isSet || accept(value, maxValue))
-				{
-					maxArg = item;
-					maxValue = value;
-					isSet = true;
-				}
-			}
+            var appendable = collection as AppendableEnumerable<T> ?? new AppendableEnumerable<T>(collection);
+            return appendable.Append(item);
+        }
 
-			return maxArg;
-		}
+        /// <summary>
+        /// Yields a new list with an item added to the beginning.
+        /// </summary>
+        /// <typeparam name="T">The type of items in the collection.</typeparam>
+        /// <param name="collection">The target collection</param>
+        /// <param name="item">The item to prepend.</param>
+        /// <returns>A new list with <paramref name="item"/> added to the beginning.</returns>
+        public static IEnumerable<T> Prepend<T>(this IEnumerable<T> collection, T item)
+        {
+            if (collection == null)
+                throw new ArgumentNullException("collection");
 
-		/// <summary>
-		/// Joins each item 
-		/// </summary>
-		/// <typeparam name="T"></typeparam>
-		/// <param name="list"></param>
-		/// <param name="separator"></param>
-		/// <returns></returns>
-		public static string StringJoin<T>(this IEnumerable<T> list, string separator)
-		{
-			return StringJoin(list, separator, ConvertObjectToString);
-		}
+            if (item == null)
+                throw new ArgumentNullException("item");
 
-		private static string ConvertObjectToString<T>(T obj)
-		{
-			return obj.ToString();
-		}
+            var appendable = collection as AppendableEnumerable<T> ?? new AppendableEnumerable<T>(collection);
+            return appendable.Prepend(item);
+        }
 
-		public static string StringJoin<T>(this IEnumerable<T> list, string separator, Func<T, string> toString)
-		{
-			if (list == null)
-				throw new ArgumentNullException("list");
+        /// <summary>
+        /// Yields a list without any items that throw an exception while enumerating.
+        /// </summary>
+        /// <typeparam name="T">The type of items in the collection.</typeparam>
+        /// <param name="collection">The target collection</param>
+        /// <returns>The list without any items that have thrown an exception.</returns>
+        [Obsolete]
+        public static IEnumerable<T> SkipExceptions<T>(this IEnumerable<T> collection)
+        {
+            return collection.SkipExceptions<T, Exception>();
+        }
 
-			if (separator == null)
-				throw new ArgumentNullException("separator");
+        /// <summary>
+        /// Yields a list without any items that throw an exception while enumerating.
+        /// </summary>
+        /// <typeparam name="T">The type of items in the collection.</typeparam>
+        /// <typeparam name="TException">The type of exception to catch.</typeparam>
+        /// <param name="collection">The target collection</param>
+        /// <returns>The list without any items that have thrown an exception.</returns>
+        [Obsolete]
+        public static IEnumerable<T> SkipExceptions<T, TException>(this IEnumerable<T> collection) where TException : Exception
+        {
+            using (var enumerator = collection.GetEnumerator())
+            {
+                while (true)
+                {
+                    bool success = false;
+                    bool exceptionOccurred = false;
 
-			if (toString == null)
-				throw new ArgumentNullException("toString");
+                    try
+                    {
+                        success = enumerator.MoveNext();
+                    }
+                    catch (TException)
+                    {
+                        exceptionOccurred = true;
+                    }
+
+                    // if an exception occurred, we don't know if we're at the end
+                    // of the list or not. Fortunately, calling MoveNext() after a
+                    // a list has been fully enumerated always returns false.
+                    if (!exceptionOccurred && !success)
+                        break;
+
+                    if (!exceptionOccurred)
+                        yield return enumerator.Current;
+                }
+            }
+        }
+
+        public static IEnumerable<TOutput> TryParse<TInput, TOutput>(this IEnumerable<TInput> collection)
+        {
+            if (collection == null)
+                throw new ArgumentNullException("collection");
+
+            var methodInfo = typeof(TOutput).GetMethod("TryParse", new[] { typeof(TInput), typeof(TOutput).MakeByRefType() });
+
+            foreach (var item in collection)
+            {
+                var args = new object[] { item, null };
+                var success = (bool)methodInfo.Invoke(null, args);
+
+                if (success)
+                    yield return (TOutput)args[1];
+            }
+        }
+
+        public static IEnumerable<TOutput> TryParse<TInput, TOutput>(this IEnumerable<TInput> collection, Func<TInput, TryParseResult<TOutput>, bool> tryParser)
+        {
+            if (collection == null)
+                throw new ArgumentNullException("collection");
+
+            if (tryParser == null)
+                throw new ArgumentNullException("tryParser");
+
+            foreach (var item in collection)
+            {
+                var result = new TryParseResult<TOutput>();
+
+                var success = tryParser(item, result);
+
+                if (success)
+                    yield return result.Result;
+            }
+        }
+
+        /// <summary>
+        /// Returns the specified collection as an <see cref="ObservableCollection{T}"/>.
+        /// </summary>
+        /// <typeparam name="T">The type of items in the collection.</typeparam>
+        /// <param name="collection">The target collection</param>
+        /// <returns>
+        /// An <see cref="ObservableCollection{T}"/> with all of the items
+        /// in <paramref name="collection"/>. This is not necessarily a new object.
+        /// </returns>
+        public static ObservableCollection<T> AsObservable<T>(this IEnumerable<T> collection)
+        {
+            if (collection == null)
+                throw new ArgumentNullException("collection");
+
+            return new ObservableCollection<T>(collection);
+        }
+
+        /// <summary>
+        /// Returns the specified collection as an <see cref="HashSet{T}"/>.
+        /// </summary>
+        /// <typeparam name="T">The type of items in the collection.</typeparam>
+        /// <param name="collection">The target collection</param>
+        /// <returns>
+        /// An <see cref="HashSet{T}"/> with all of the items
+        /// in <paramref name="collection"/>. This is not necessarily a new object.
+        /// </returns>
+        public static HashSet<T> AsHashSet<T>(this IEnumerable<T> collection)
+        {
+            if (collection == null)
+                throw new ArgumentNullException("collection");
+
+            return new HashSet<T>(collection);
+        }
+
+        /// <summary>
+        /// Gets the argument that produces the maximum value 
+        /// yielded from the specified function.
+        /// </summary>
+        /// <typeparam name="T">The type of items in the collection.</typeparam>
+        /// <typeparam name="TValue">The type of the value yielded from the specified function.</typeparam>
+        /// <param name="collection">The target collection.</param>
+        /// <param name="function">The function used to produce values.</param>
+        /// <returns>The argument that produces the highest value.</returns>
+        public static T ArgMax<T, TValue>(this IEnumerable<T> collection, Func<T, TValue> function)
+            where TValue : IComparable<TValue>
+        {
+            return ArgComp(collection, function, GreaterThan);
+        }
+
+        private static bool GreaterThan<T>(T first, T second) where T : IComparable<T>
+        {
+            return first.CompareTo(second) > 0;
+        }
+
+        /// <summary>
+        /// Gets the argument that produces the minimum value 
+        /// yielded from the specified function.
+        /// </summary>
+        /// <typeparam name="T">The type of items in the collection.</typeparam>
+        /// <typeparam name="TValue">The type of the value yielded from the specified function.</typeparam>
+        /// <param name="collection">The target collection.</param>
+        /// <param name="function">The function used to produce values.</param>
+        /// <returns>The argument that produces the least value.</returns>
+        public static T ArgMin<T, TValue>(this IEnumerable<T> collection, Func<T, TValue> function)
+            where TValue : IComparable<TValue>
+        {
+            return ArgComp(collection, function, LessThan);
+        }
+
+        private static bool LessThan<T>(T first, T second) where T : IComparable<T>
+        {
+            return first.CompareTo(second) < 0;
+        }
+
+        private static T ArgComp<T, TValue>(IEnumerable<T> collection, Func<T, TValue> function, Func<TValue, TValue, bool> accept)
+            where TValue : IComparable<TValue>
+        {
+            if (collection == null)
+                throw new ArgumentNullException("collection");
+
+            if (function == null)
+                throw new ArgumentNullException("function");
+
+            var isSet = false;
+            var maxArg = default(T);
+            var maxValue = default(TValue);
+
+            foreach (var item in collection)
+            {
+                var value = function(item);
+                if (!isSet || accept(value, maxValue))
+                {
+                    maxArg = item;
+                    maxValue = value;
+                    isSet = true;
+                }
+            }
+
+            return maxArg;
+        }
+
+        /// <summary>
+        /// Joins each item 
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="list"></param>
+        /// <param name="separator"></param>
+        /// <returns></returns>
+        public static string StringJoin<T>(this IEnumerable<T> list, string separator)
+        {
+            return StringJoin(list, separator, ConvertObjectToString);
+        }
+
+        private static string ConvertObjectToString<T>(T obj)
+        {
+            return obj.ToString();
+        }
+
+        public static string StringJoin<T>(this IEnumerable<T> list, string separator, Func<T, string> toString)
+        {
+            if (list == null)
+                throw new ArgumentNullException("list");
+
+            if (separator == null)
+                throw new ArgumentNullException("separator");
+
+            if (toString == null)
+                throw new ArgumentNullException("toString");
 #if NET40
-			return string.Join(separator, list.Select(toString));
+            return string.Join(separator, list.Select(toString));
 #else
-			return string.Join(separator, list.Select(toString).ToArray());
+            return string.Join(separator, list.Select(toString).ToArray());
 #endif
-		}
+        }
 
-		public static bool DeepEquals<T>(this IEnumerable<T> target, IEnumerable<T> other)
-		{
-			return target.DeepEquals(other, EqualityComparer<T>.Default.Equals);
-		}
+        public static bool DeepEquals<T>(this IEnumerable<T> target, IEnumerable<T> other)
+        {
+            return target.DeepEquals(other, EqualityComparer<T>.Default.Equals);
+        }
 
-		public static bool DeepEquals<T>(this IEnumerable<T> target, IEnumerable<T> other, Func<T, T, bool> comparer)
-		{
-			if (target == null && other == null)
-				return true;
+        public static bool DeepEquals<T>(this IEnumerable<T> target, IEnumerable<T> other, Func<T, T, bool> comparer)
+        {
+            if (target == null && other == null)
+                return true;
 
-			if (target == null || other == null)
-				return false;
+            if (target == null || other == null)
+                return false;
 
-			if (object.ReferenceEquals(target, other))
-				return true;
+            if (object.ReferenceEquals(target, other))
+                return true;
 
-			using (var targetEnumerable = target.GetEnumerator())
-			using (var otherEnumerable = other.GetEnumerator())
-			{
-				while (true)
-				{
-					var targetSuccess = targetEnumerable.MoveNext();
-					var otherSuccess = otherEnumerable.MoveNext();
+            using (var targetEnumerable = target.GetEnumerator())
+            using (var otherEnumerable = other.GetEnumerator())
+            {
+                while (true)
+                {
+                    var targetSuccess = targetEnumerable.MoveNext();
+                    var otherSuccess = otherEnumerable.MoveNext();
 
-					if (!targetSuccess && !otherSuccess)
-						return true;
+                    if (!targetSuccess && !otherSuccess)
+                        return true;
 
-					if (!targetSuccess || !otherSuccess)
-						return false;
+                    if (!targetSuccess || !otherSuccess)
+                        return false;
 
-					if (!comparer(targetEnumerable.Current, otherEnumerable.Current))
-						return false;
-				}
-			}
-		}
+                    if (!comparer(targetEnumerable.Current, otherEnumerable.Current))
+                        return false;
+                }
+            }
+        }
 
-		private class AppendableEnumerable<T> : IEnumerable<T>
-		{
-			private readonly T[] _prepends;
-			private readonly T[] _appends;
+        private class AppendableEnumerable<T> : IEnumerable<T>
+        {
+            private readonly T[] _prepends;
+            private readonly T[] _appends;
 
-			private readonly IEnumerable<T> _baseEnumerable;
+            private readonly IEnumerable<T> _baseEnumerable;
 
-			public AppendableEnumerable(IEnumerable<T> baseEnumerable)
-			{
-				_prepends = new T[0];
-				_appends = new T[0];
+            public AppendableEnumerable(IEnumerable<T> baseEnumerable)
+            {
+                _prepends = new T[0];
+                _appends = new T[0];
 
-				_baseEnumerable = baseEnumerable;
-			}
+                _baseEnumerable = baseEnumerable;
+            }
 
-			private AppendableEnumerable(T[] prepends, IEnumerable<T> baseEnumerable, T[] appends)
-			{
-				_prepends = prepends;
-				_baseEnumerable = baseEnumerable;
-				_appends = appends;
-			}
+            private AppendableEnumerable(T[] prepends, IEnumerable<T> baseEnumerable, T[] appends)
+            {
+                _prepends = prepends;
+                _baseEnumerable = baseEnumerable;
+                _appends = appends;
+            }
 
-			public AppendableEnumerable<T> Prepend(T item)
-			{
-				var prepends = new T[_prepends.Length + 1];
-				prepends[0] = item;
-				_prepends.CopyTo(prepends, 1);
+            public AppendableEnumerable<T> Prepend(T item)
+            {
+                var prepends = new T[_prepends.Length + 1];
+                prepends[0] = item;
+                _prepends.CopyTo(prepends, 1);
 
-				return new AppendableEnumerable<T>(prepends, _baseEnumerable, _appends);
-			}
+                return new AppendableEnumerable<T>(prepends, _baseEnumerable, _appends);
+            }
 
-			public AppendableEnumerable<T> Append(T item)
-			{
-				var appends = new T[_appends.Length + 1];
-				_appends.CopyTo(appends, 0);
-				appends[appends.Length - 1] = item;
+            public AppendableEnumerable<T> Append(T item)
+            {
+                var appends = new T[_appends.Length + 1];
+                _appends.CopyTo(appends, 0);
+                appends[appends.Length - 1] = item;
 
-				return new AppendableEnumerable<T>(_prepends, _baseEnumerable, appends);
-			}
+                return new AppendableEnumerable<T>(_prepends, _baseEnumerable, appends);
+            }
 
-			public IEnumerator<T> GetEnumerator()
-			{
-				foreach (var item in _prepends)
-					yield return item;
+            public IEnumerator<T> GetEnumerator()
+            {
+                foreach (var item in _prepends)
+                    yield return item;
 
-				foreach (var item in _baseEnumerable)
-					yield return item;
+                foreach (var item in _baseEnumerable)
+                    yield return item;
 
-				foreach (var item in _appends)
-					yield return item;
-			}
+                foreach (var item in _appends)
+                    yield return item;
+            }
 
-			IEnumerator IEnumerable.GetEnumerator()
-			{
-				return GetEnumerator();
-			}
-		}
+            IEnumerator IEnumerable.GetEnumerator()
+            {
+                return GetEnumerator();
+            }
+        }
 
-		public sealed class TryParseResult<T>
-		{
-			public T Result;
-		}
-	}
+        public sealed class TryParseResult<T>
+        {
+            public T Result;
+        }
+    }
 }
