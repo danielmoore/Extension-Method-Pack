@@ -25,4 +25,5 @@ obj/
 [Dd]ebug*/
 [Rr]elease*/
 _*
+*.docstates
 

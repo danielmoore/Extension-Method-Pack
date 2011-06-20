@@ -145,5 +145,93 @@ namespace NorthHorizon.Common.Xmp.Tests
 			}
 		}
 
-	}
+        [TestMethod]
+        public void TestHasLessThan()
+        {
+            Assert.IsFalse(Enumerable.Range(0, 10).Has(c => c < 10));
+            Assert.IsTrue(Enumerable.Range(0, 10).Has(c => c < 11));
+        }
+
+        [TestMethod]
+        public void TestInvertedHasLessThan()
+        {
+            Assert.IsFalse(Enumerable.Range(0, 10).Has(c => 10 < c));
+            Assert.IsTrue(Enumerable.Range(0, 10).Has(c => 9 < c));
+        }
+
+        [TestMethod]
+        public void TestHasLessThanOrEqual()
+        {
+            Assert.IsFalse(Enumerable.Range(0, 10).Has(c => c <= 9));
+            Assert.IsTrue(Enumerable.Range(0, 10).Has(c => c <= 10));
+
+        }
+
+        [TestMethod]
+        public void TestInvertedHasLessThanOrEqual()
+        {
+            Assert.IsFalse(Enumerable.Range(0, 10).Has(c => 11 <= c));
+            Assert.IsTrue(Enumerable.Range(0, 10).Has(c => 10 <= c));
+        }
+
+        [TestMethod]
+        public void TestHasGreaterThan()
+        {
+            Assert.IsFalse(Enumerable.Range(0, 10).Has(c => c > 10));
+            Assert.IsTrue(Enumerable.Range(0, 10).Has(c => c > 9));
+        }
+
+        [TestMethod]
+        public void TestInvetedHasGreaterThan()
+        {
+            Assert.IsFalse(Enumerable.Range(0, 10).Has(c => 10 > c));
+            Assert.IsTrue(Enumerable.Range(0, 10).Has(c => 11 > c));
+        }
+
+        [TestMethod]
+        public void TestHasGreaterThanOrEqual()
+        {
+            Assert.IsFalse(Enumerable.Range(0, 10).Has(c => c >= 11));
+            Assert.IsTrue(Enumerable.Range(0, 10).Has(c => c >= 10));
+        }
+
+        [TestMethod]
+        public void TestInvertedHasGreaterThanOrEqual()
+        {
+            Assert.IsFalse(Enumerable.Range(0, 10).Has(c => 9 >= c));
+            Assert.IsTrue(Enumerable.Range(0, 10).Has(c => 10 >= c));
+        }
+
+        [TestMethod]
+        public void TestHasEqual()
+        {
+            Assert.IsFalse(Enumerable.Range(0, 10).Has(c => c == 9));
+            Assert.IsFalse(Enumerable.Range(0, 10).Has(c => c == 11));
+            Assert.IsTrue(Enumerable.Range(0, 10).Has(c => c == 10));
+        }
+
+        [TestMethod]
+        public void TestInvertedHasEqual()
+        {
+            Assert.IsFalse(Enumerable.Range(0, 10).Has(c => 9 == c));
+            Assert.IsFalse(Enumerable.Range(0, 10).Has(c => 11 == c));
+            Assert.IsTrue(Enumerable.Range(0, 10).Has(c => 10 == c));
+        }
+
+        [TestMethod]
+        public void TestHasNotEqual()
+        {
+            Assert.IsFalse(Enumerable.Range(0, 10).Has(c => c != 10));
+            Assert.IsTrue(Enumerable.Range(0, 10).Has(c => c != 9));
+            Assert.IsTrue(Enumerable.Range(0, 10).Has(c => c != 11));
+        }
+
+        [TestMethod]
+        public void TestInvertedHasNotEqual()
+        {
+            Assert.IsFalse(Enumerable.Range(0, 10).Has(c => 10 != c));
+            Assert.IsTrue(Enumerable.Range(0, 10).Has(c => 9 != c));
+            Assert.IsTrue(Enumerable.Range(0, 10).Has(c => 11 != c));
+        }
+    }
 }
