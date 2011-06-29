@@ -37,6 +37,7 @@
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
     <Reference Include="System" />
+    <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.Core">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
@@ -50,6 +51,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CollectionExtensionsTestFixture.cs" />
+    <Compile Include="CompositionContainerExtensionsTestFixture.cs" />
     <Compile Include="DependencyObjectExtensionsTestFixture.cs" />
     <Compile Include="DictionaryExtensionsTestFixture.cs" />
     <Compile Include="EnumerableExtensionsTestFixture.cs" />
