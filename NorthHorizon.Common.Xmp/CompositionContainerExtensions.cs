@@ -76,9 +76,6 @@ namespace NorthHorizon.Common.Xmp
                     .OfType<IGlobalCompositionContainerScope>()
                     .SelectMany(s => types.Select(t => s.ShouldIncludeInContainer(_containerName, t)));
 
-                var accessorAttr = accessors.SelectMany(Attribute.GetCustomAttributes);
-                accessorAttr.ToList();
-
                 var localScopes = accessors
                     .Concat(accessors.GroupJoin(
                         types.SelectMany(t => t.GetProperties()),
