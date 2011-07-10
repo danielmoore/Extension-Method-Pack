@@ -51,6 +51,7 @@
   <ItemGroup>
     <Compile Include="CollectionExtensions.cs" />
     <Compile Include="Composition\CompositionContainerScopeAttribute.cs" />
+    <Compile Include="Composition\IContainerScope.cs" />
     <Compile Include="Composition\IGlobalCompositionContainerScope.cs" />
     <Compile Include="DependencyObjectExtensions.cs" />
     <Compile Include="DictionaryExtensions.cs" />
