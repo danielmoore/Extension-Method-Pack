@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTitle("North Horizon Extension Method Pack")]
 [assembly: AssemblyCompany("North Horizon")]
 [assembly: AssemblyProduct("Extension Method Pack")]
-[assembly: AssemblyCopyright("http://northhorizon.net/license/")]
+[assembly: AssemblyCopyright("Copyright 2011 Daniel Moore")]
 
 [assembly: ComVisible(false)]
 
