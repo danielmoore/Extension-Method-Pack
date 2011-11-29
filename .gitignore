@@ -24,6 +24,6 @@ obj/
 [Bb]in
 [Dd]ebug*/
 [Rr]elease*/
-_*
+_*/
+TestResults/
 *.docstates
-
